@@ -1,0 +1,22 @@
+# ResQNet PH Flood Zone Database
+# id|name|municipality|level_cm|families|evacuated|rescueTeam
+1|Brgy. Batasan Hills|Quezon City|85.0|320|0|Team Alpha
+2|Brgy. Payatas|Quezon City|120.5|415|1|Team Alpha
+3|Brgy. Commonwealth|Quezon City|45.0|180|0|Team Bravo
+4|Brgy. Bagong Silangan|Quezon City|200.0|580|1|Team Charlie
+5|Brgy. Fairview|Quezon City|30.0|95|0|Team Bravo
+6|Brgy. Tondo|Manila|15.0|60|0|Team Delta
+7|Brgy. Pandacan|Manila|55.5|210|0|Team Delta
+8|Brgy. Binondo|Manila|175.0|490|1|Team Echo
+9|Brgy. Sta. Ana|Manila|10.0|40|0|Team Delta
+10|Brgy. San Andres|Manila|90.0|350|0|Team Foxtrot
+11|Brgy. Manggahan|Pasig|250.0|620|1|Team Foxtrot
+12|Brgy. Dela Paz|Pasig|5.0|20|0|Team Golf
+13|Brgy. Pinagbuhatan|Pasig|140.0|430|1|Team Golf
+14|Brgy. Ugong|Pasig|70.0|260|0|Team Hotel
+15|Brgy. Bangkal|Makati|110.0|390|0|Team India
+16|Brgy. Pembo|Makati|300.0|700|1|Team India
+17|Brgy. Guadalupe Nuevo|Makati|25.0|80|0|Team Juliet
+18|Brgy. Culiat|Quezon City|160.0|470|1|Team Juliet
+19|Brgy. San Isidro|Paranaque|40.0|155|0|Team Kilo
+20|Brgy. Tambo|Paranaque|220.0|540|1|Team Kilo

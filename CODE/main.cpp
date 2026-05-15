@@ -7,7 +7,9 @@ int main() {
 
     monitor.displayHeader();
 
-    monitor.loadFromFile("database.txt");
+    // FR1 — Auto-load database on startup
+    if (!monitor.loadFromFile("database.txt"))
+        monitor.loadFromFile("../INPUT_DATA/database.txt");
 
     int choice;
 
@@ -23,29 +25,25 @@ int main() {
 
         switch (choice) {
 
-            // ---- Original options (kept exactly) ----
             case 1:
                 monitor.logFloodReports();
                 break;
 
             case 2:
-                if (monitor.isDataLoaded()) {
+                if (monitor.isDataLoaded())
                     monitor.generateRiskAssessment();
-                } else {
-                    std::cout << "\n[!] ALERT: No flood data available. Please add a report first (Option 1).\n";
-                }
+                else
+                    std::cout << "\n[!] ALERT: No flood data. Please add a report first (Option 1).\n";
                 break;
 
             case 3:
-                if (monitor.isDataLoaded()) {
+                if (monitor.isDataLoaded())
                     monitor.suggestSafeRoutes();
-                } else {
-                    std::cout << "\n[!] ALERT: Cannot map routes without current flood data.\n";
-                }
+                else
+                    std::cout << "\n[!] ALERT: Cannot map routes without flood data.\n";
                 break;
 
             case 4: {
-                
                 int sub;
                 std::cout << "\nCRUD Menu: [1] View  [2] Add  [3] Update  [4] Delete: ";
                 if (!(std::cin >> sub)) {
@@ -57,10 +55,8 @@ int main() {
 
                 if (sub == 1) {
                     monitor.viewZones();
-
                 } else if (sub == 2) {
-                    std::string name;
-                    double lvl;
+                    std::string name; double lvl;
                     std::cout << "New zone name: ";
                     std::cin.ignore();
                     std::getline(std::cin, name);
@@ -70,30 +66,23 @@ int main() {
                         std::cout << "[OK] Zone added.\n";
                     else
                         std::cout << "[!] Failed. Check that level is 0-500 cm.\n";
-
                 } else if (sub == 3) {
                     monitor.viewZones();
-                    int idx;
-                    double lvl;
-                    std::cout << "Zone number to update: ";
-                    std::cin >> idx;
-                    std::cout << "New flood level (cm)  : ";
-                    std::cin >> lvl;
+                    int idx; double lvl;
+                    std::cout << "Zone number to update: "; std::cin >> idx;
+                    std::cout << "New flood level (cm) : "; std::cin >> lvl;
                     if (monitor.updateZone(idx, lvl))
                         std::cout << "[OK] Zone updated.\n";
                     else
-                        std::cout << "[!] Update failed (invalid number or level).\n";
-
+                        std::cout << "[!] Update failed.\n";
                 } else if (sub == 4) {
                     monitor.viewZones();
                     int idx;
-                    std::cout << "Zone number to delete: ";
-                    std::cin >> idx;
+                    std::cout << "Zone number to delete: "; std::cin >> idx;
                     if (monitor.deleteZone(idx))
                         std::cout << "[OK] Zone deleted.\n";
                     else
-                        std::cout << "[!] Delete failed (invalid number).\n";
-
+                        std::cout << "[!] Delete failed.\n";
                 } else {
                     std::cout << "[!] Invalid CRUD selection.\n";
                 }

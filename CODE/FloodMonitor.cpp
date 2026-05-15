@@ -5,21 +5,49 @@
 #include <sstream>
 #include <algorithm>
 #include <limits>
+
+// ============================================================
+// Constructor
+// ============================================================
 FloodMonitor::FloodMonitor() : dataFile(""), reportsLoaded(false) {}
 
+// ============================================================
+// Destructor — deletes all FloodZone pointers (memory management)
+// ============================================================
+FloodMonitor::~FloodMonitor() {
+    for (FloodZone* z : zones)
+        delete z;
+    zones.clear();
+}
+
+// ============================================================
+// Private: generateNewId
+// ============================================================
 int FloodMonitor::generateNewId() const {
     int maxId = 0;
-    for (const auto& z : zones)
-        if (z.getId() > maxId) maxId = z.getId();
+    for (const FloodZone* z : zones)
+        if (z->getId() > maxId) maxId = z->getId();
     return maxId + 1;
 }
 
+// ============================================================
+// Private: findIndexById
+// ============================================================
 int FloodMonitor::findIndexById(int id) const {
     for (int i = 0; i < (int)zones.size(); i++)
-        if (zones[i].getId() == id) return i;
+        if (zones[i]->getId() == id) return i;
     return -1;
 }
 
+// ============================================================
+// Function : loadFromFile  (FR1)
+// Purpose  : Reads database.txt and creates the right derived
+//            class object based on the water level:
+//            >= 100 cm or 500+ families -> CriticalZone
+//            < 50 cm                   -> MonitoredZone
+//            otherwise                 -> FloodZone (base)
+// This is where POLYMORPHISM happens at runtime.
+// ============================================================
 bool FloodMonitor::loadFromFile(const std::string& filename) {
     dataFile = filename;
     std::ifstream file(filename);
@@ -29,7 +57,10 @@ bool FloodMonitor::loadFromFile(const std::string& filename) {
         return false;
     }
 
+    // delete existing pointers before reloading
+    for (FloodZone* z : zones) delete z;
     zones.clear();
+
     std::string line;
     int loaded = 0;
 
@@ -49,10 +80,25 @@ bool FloodMonitor::loadFromFile(const std::string& filename) {
             double level     = std::stod(tokens[3]);
             int    families  = std::stoi(tokens[4]);
             bool   evacuated = (tokens[5] == "1");
-            FloodZone z(id, tokens[1], tokens[2], level, families, evacuated, tokens[6]);
+            std::string name = tokens[1];
+            std::string mun  = tokens[2];
+            std::string team = tokens[6];
+
+            FloodZone* z = nullptr;
+
+            // Polymorphism: create the right type based on severity
+            if (level >= 100.0 || families >= 500) {
+                std::string alert = (level >= 200.0 || families >= 600) ? "RED" : "ORANGE";
+                z = new CriticalZone(id, name, mun, level, families, evacuated, team, alert);
+            } else if (level < 50.0 && families < 200) {
+                z = new MonitoredZone(id, name, mun, level, families, evacuated, team, 2);
+            } else {
+                z = new FloodZone(id, name, mun, level, families, evacuated, team);
+            }
+
             zones.push_back(z);
             loaded++;
-        } catch (...) { /* skip unparseable records */ }
+        } catch (...) {}
     }
 
     file.close();
@@ -62,9 +108,12 @@ bool FloodMonitor::loadFromFile(const std::string& filename) {
     return reportsLoaded;
 }
 
+// ============================================================
+// Function : saveToFile  (FR4)
+// ============================================================
 bool FloodMonitor::saveToFile() const {
     if (dataFile.empty()) {
-        std::cout << "\n[!] No file path configured. Cannot save.\n";
+        std::cout << "\n[!] No file path set. Cannot save.\n";
         return false;
     }
     std::ofstream file(dataFile);
@@ -74,14 +123,17 @@ bool FloodMonitor::saveToFile() const {
     }
     file << "# ResQNet PH Flood Zone Database\n";
     file << "# id|name|municipality|level_cm|families|evacuated|rescueTeam\n";
-    for (const auto& z : zones)
-        file << z.toFileString() << "\n";
+    for (const FloodZone* z : zones)
+        file << z->toFileString() << "\n";
     file.close();
-    std::cout << "\n[OK] " << zones.size()
-              << " records saved to '" << dataFile << "'.\n";
+    std::cout << "\n[OK] " << zones.size() << " records saved to '"
+              << dataFile << "'.\n";
     return true;
 }
 
+// ============================================================
+// displayHeader
+// ============================================================
 void FloodMonitor::displayHeader() const {
     std::cout << "\n================================================\n";
     std::cout << "       ResQNet PH: REAL-TIME FLOOD MONITOR      \n";
@@ -90,6 +142,9 @@ void FloodMonitor::displayHeader() const {
     std::cout << "================================================\n";
 }
 
+// ============================================================
+// displayMenu  (FR5)
+// ============================================================
 void FloodMonitor::displayMenu() const {
     std::cout << "\nSYSTEM COMMANDS:\n";
     std::cout << "[1]  Input / Add Flood Zone Report\n";
@@ -102,6 +157,9 @@ void FloodMonitor::displayMenu() const {
     std::cout << "[0]  Save & Exit\n";
 }
 
+// ============================================================
+// Function : logFloodReports  (FR2 Create)
+// ============================================================
 void FloodMonitor::logFloodReports() {
     std::cout << "\n--- DATA ENTRY: LOCALIZED FLOOD REPORTING ---\n";
     std::string name, municipality, team;
@@ -110,7 +168,6 @@ void FloodMonitor::logFloodReports() {
     char   evChoice;
 
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-
     std::cout << "Zone / Barangay Name : "; std::getline(std::cin, name);
     std::cout << "Municipality         : "; std::getline(std::cin, municipality);
 
@@ -119,9 +176,8 @@ void FloodMonitor::logFloodReports() {
         if (std::cin >> level && isValidLevel(level)) break;
         std::cin.clear();
         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        std::cout << " [!] Sensor Error: Invalid depth. Must be 0-500 cm. Retry.\n";
+        std::cout << " [!] Invalid. Must be 0-500 cm.\n";
     }
-
     while (true) {
         std::cout << "Affected Families       : ";
         if (std::cin >> families && families >= 0) break;
@@ -129,7 +185,6 @@ void FloodMonitor::logFloodReports() {
         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         std::cout << " [!] Invalid. Enter a whole number >= 0.\n";
     }
-
     std::cout << "Evacuated? (y/n)         : ";
     std::cin >> evChoice;
     bool evacuated = (evChoice == 'y' || evChoice == 'Y');
@@ -138,183 +193,238 @@ void FloodMonitor::logFloodReports() {
     std::cout << "Rescue Team Assigned     : "; std::getline(std::cin, team);
 
     int newId = generateNewId();
-    FloodZone z(newId, name, municipality, level, families, evacuated, team);
+    FloodZone* z = nullptr;
+
+    // Polymorphism: decide which type to create
+    if (level >= 100.0 || families >= 500) {
+        std::string alert = (level >= 200.0 || families >= 600) ? "RED" : "ORANGE";
+        z = new CriticalZone(newId, name, municipality, level, families, evacuated, team, alert);
+        std::cout << "\n[!!] CRITICAL ZONE created with alert level: "
+                  << static_cast<CriticalZone*>(z)->getAlertLevel() << "\n";
+    } else if (level < 50.0 && families < 200) {
+        z = new MonitoredZone(newId, name, municipality, level, families, evacuated, team, 2);
+        std::cout << "\n[OK] MONITORED ZONE created. Check every 2 hours.\n";
+    } else {
+        z = new FloodZone(newId, name, municipality, level, families, evacuated, team);
+        std::cout << "\n[OK] Zone added.\n";
+    }
+
+    std::cout << "Risk: " << z->getRiskStatus() << "\n";
+    std::cout << "Action: " << z->getActionPlan() << "\n";  // polymorphic call
     zones.push_back(z);
     reportsLoaded = true;
-
-    std::cout << "\n[OK] Zone #" << newId << " added | Risk: "
-              << z.getRiskStatus() << "\n";
 }
 
+// ============================================================
+// Function : calculateRiskStats
+// ============================================================
 void FloodMonitor::calculateRiskStats(double& avgLevel, int& highRiskCount) const {
     double total = 0;
     highRiskCount = 0;
-    for (const auto& z : zones) {
-        total += z.getLevel();
-        if (z.isHighRisk()) highRiskCount++;
+    for (const FloodZone* z : zones) {
+        total += z->getLevel();
+        if (z->isHighRisk()) highRiskCount++;
     }
     avgLevel = zones.empty() ? 0 : total / zones.size();
 }
 
+// ============================================================
+// Function : generateRiskAssessment  (FR3)
+// Purpose  : Sorts zones by urgency and prints ranked report.
+//            Calls getActionPlan() polymorphically —
+//            each zone type prints its own plan automatically.
+// ============================================================
 void FloodMonitor::generateRiskAssessment() const {
-    if (zones.empty()) { std::cout << "\n[!] No data loaded.\n"; return; }
+    if (zones.empty()) { std::cout << "\n[!] No data.\n"; return; }
 
-    double avgLevel;
-    int highRiskCount;
+    double avgLevel; int highRiskCount;
     calculateRiskStats(avgLevel, highRiskCount);
 
-    // Sort copy by urgency score (highest first)
-    std::vector<FloodZone> sorted = zones;
+    // Sort copy by urgency
+    std::vector<FloodZone*> sorted = zones;
     std::sort(sorted.begin(), sorted.end(),
-              [](const FloodZone& a, const FloodZone& b) {
-                  return a.getUrgencyScore() > b.getUrgencyScore();
+              [](const FloodZone* a, const FloodZone* b) {
+                  return a->getUrgencyScore() > b->getUrgencyScore();
               });
 
     std::cout << "\n--- PREDICTIVE RISK INDICATOR REPORT ---\n";
-    std::cout << std::fixed << std::setprecision(1);
     int rank = 1;
-    for (const auto& z : sorted) {
+    for (const FloodZone* z : sorted) {
         std::cout << "\nPRIORITY #" << rank++ << "\n";
-        z.printDetails();
+        z->printDetails();   // polymorphic call
         std::cout << "---\n";
     }
-    std::cout << "Community Average Depth : " << avgLevel << " cm\n";
-    std::cout << "High-Risk Zones Count   : " << highRiskCount << "\n";
+    std::cout << "Average Depth  : " << std::fixed << std::setprecision(1)
+              << avgLevel << " cm\n";
+    std::cout << "High-Risk Zones: " << highRiskCount << "\n";
 }
 
+// ============================================================
+// Function : suggestSafeRoutes  (FR3)
+// ============================================================
 void FloodMonitor::suggestSafeRoutes() const {
-    if (zones.empty()) { std::cout << "\n[!] No data loaded.\n"; return; }
+    if (zones.empty()) { std::cout << "\n[!] No data.\n"; return; }
 
     std::cout << "\n--- SAFE ROUTE MAPPING ---\n";
     bool foundSafe = false;
-    for (const auto& z : zones) {
-        if (z.isSafeRoute()) {
-            std::cout << "[SAFE] " << z.getName()
-                      << " is currently passable for all vehicles.\n";
+    for (const FloodZone* z : zones) {
+        if (z->isSafeRoute()) {
+            std::cout << "[SAFE] " << z->getName()
+                      << " (" << z->getMunicipality()
+                      << ") is passable for all vehicles.\n";
             foundSafe = true;
         }
     }
     if (!foundSafe)
-        std::cout << "[WARNING] No zones currently meet the 'Safe Route' threshold.\n";
+        std::cout << "[WARNING] No zones meet the Safe Route threshold.\n";
 
-    std::cout << "\n--- EVACUATION ROUTE TIPS (HIGH/CRITICAL ZONES) ---\n";
-    bool anyDanger = false;
-    for (const auto& z : zones) {
-        if (z.isHighRisk()) {
-            std::cout << "\n[" << z.getName() << "]\n"
-                      << "  " << z.getSuggestedRoute() << "\n";
-            anyDanger = true;
+    std::cout << "\n--- ACTION PLANS (HIGH/CRITICAL ZONES) ---\n";
+    bool any = false;
+    for (const FloodZone* z : zones) {
+        if (z->isHighRisk()) {
+            std::cout << "\n[" << z->getName() << "]\n";
+            std::cout << "  " << z->getActionPlan() << "\n";  // polymorphic!
+            any = true;
         }
     }
-    if (!anyDanger)
-        std::cout << "[OK] No high-risk zones requiring route redirection.\n";
+    if (!any) std::cout << "[OK] No high-risk zones.\n";
 }
 
+// ============================================================
+// Function : showStatsDashboard
+// ============================================================
 void FloodMonitor::showStatsDashboard() const {
-    if (zones.empty()) { std::cout << "\n[!] No data loaded.\n"; return; }
+    if (zones.empty()) { std::cout << "\n[!] No data.\n"; return; }
 
     int critical = 0, high = 0, moderate = 0, low = 0;
     int totalFamilies = 0, evacuatedCount = 0;
+    int criticalZones = 0, monitoredZones = 0, baseZones = 0;
     double totalDepth = 0.0;
 
-    for (const auto& z : zones) {
-        std::string r = z.getRiskStatus();
+    for (const FloodZone* z : zones) {
+        std::string r = z->getRiskStatus();
         if      (r.find("CRITICAL") != std::string::npos) critical++;
         else if (r.find("HIGH")     != std::string::npos) high++;
         else if (r.find("MODERATE") != std::string::npos) moderate++;
         else                                              low++;
 
-        totalFamilies  += z.getAffectedFamilies();
-        totalDepth     += z.getLevel();
-        if (z.isEvacuated()) evacuatedCount++;
+        totalFamilies += z->getAffectedFamilies();
+        totalDepth    += z->getLevel();
+        if (z->isEvacuated()) evacuatedCount++;
+
+        // Count by type using dynamic_cast (polymorphism)
+        if      (dynamic_cast<const CriticalZone*>(z))  criticalZones++;
+        else if (dynamic_cast<const MonitoredZone*>(z)) monitoredZones++;
+        else                                             baseZones++;
     }
 
     int n = (int)zones.size();
     std::cout << "\n================================================\n";
     std::cout << "        RESQNET STATISTICS DASHBOARD\n";
     std::cout << "================================================\n";
-    std::cout << "  Total Zones Monitored  : " << n            << "\n";
-    std::cout << "  Total Affected Families: " << totalFamilies << "\n";
+    std::cout << "  Total Zones Monitored  : " << n             << "\n";
+    std::cout << "  Total Affected Families: " << totalFamilies  << "\n";
     std::cout << "  Average Water Depth    : " << std::fixed
-              << std::setprecision(1) << totalDepth / n      << " cm\n";
+              << std::setprecision(1) << totalDepth / n         << " cm\n";
     std::cout << "  Zones Evacuated        : " << evacuatedCount << "\n";
     std::cout << "------------------------------------------------\n";
-    std::cout << "  CRITICAL : " << critical << "\n";
-    std::cout << "  HIGH     : " << high     << "\n";
-    std::cout << "  MODERATE : " << moderate << "\n";
-    std::cout << "  LOW      : " << low      << "\n";
+    std::cout << "  CRITICAL : " << critical     << "\n";
+    std::cout << "  HIGH     : " << high         << "\n";
+    std::cout << "  MODERATE : " << moderate     << "\n";
+    std::cout << "  LOW      : " << low          << "\n";
+    std::cout << "------------------------------------------------\n";
+    std::cout << "  CriticalZone objects   : " << criticalZones  << "\n";
+    std::cout << "  MonitoredZone objects  : " << monitoredZones << "\n";
+    std::cout << "  FloodZone objects      : " << baseZones      << "\n";
     std::cout << "================================================\n";
 }
 
+// ============================================================
+// CRUD — addZone
+// ============================================================
 bool FloodMonitor::addZone(const std::string& name, double level) {
     if (!isValidLevel(level)) return false;
     int newId = generateNewId();
-    FloodZone z(name, level);
-    z.setId(newId);
+    FloodZone* z = new FloodZone(name, level);
+    z->setId(newId);
     zones.push_back(z);
     reportsLoaded = true;
     return true;
 }
 
+// ============================================================
+// CRUD — viewZones
+// ============================================================
 void FloodMonitor::viewZones() const {
     if (zones.empty()) { std::cout << "\n[!] No zones on record.\n"; return; }
 
     std::cout << "\n--- ZONE LIST ---\n";
     std::cout << std::left
+              << std::setw(4)  << "No."
               << std::setw(5)  << "ID"
               << std::setw(22) << "NAME"
-              << std::setw(18) << "MUNICIPALITY"
+              << std::setw(14) << "MUNICIPAL"
               << std::setw(10) << "DEPTH(cm)"
               << std::setw(10) << "FAMILIES"
               << std::setw(6)  << "EVAC"
-              << "RISK\n";
+              << "TYPE\n";
     std::cout << std::string(80, '-') << "\n";
 
-    for (const auto& z : zones) {
-        std::string risk = z.getRiskStatus();
-        // strip brackets for compact display
-        if (risk.size() > 2) risk = risk.substr(1, risk.find(']') - 1);
+    for (int i = 0; i < (int)zones.size(); i++) {
+        const FloodZone* z = zones[i];
+        std::string type = "Base";
+        if      (dynamic_cast<const CriticalZone*>(z))  type = "Critical";
+        else if (dynamic_cast<const MonitoredZone*>(z)) type = "Monitored";
+
         std::cout << std::left
-                  << std::setw(5)  << z.getId()
-                  << std::setw(22) << z.getName().substr(0, 21)
-                  << std::setw(18) << z.getMunicipality().substr(0, 17)
-                  << std::setw(10) << std::fixed << std::setprecision(1) << z.getLevel()
-                  << std::setw(10) << z.getAffectedFamilies()
-                  << std::setw(6)  << (z.isEvacuated() ? "YES" : "NO")
-                  << risk << "\n";
+                  << std::setw(4)  << (i + 1)
+                  << std::setw(5)  << z->getId()
+                  << std::setw(22) << z->getName().substr(0, 21)
+                  << std::setw(14) << z->getMunicipality().substr(0, 13)
+                  << std::setw(10) << std::fixed << std::setprecision(1) << z->getLevel()
+                  << std::setw(10) << z->getAffectedFamilies()
+                  << std::setw(6)  << (z->isEvacuated() ? "YES" : "NO")
+                  << type << "\n";
     }
     std::cout << std::string(80, '-') << "\n";
     std::cout << "Total: " << zones.size() << " zone(s)\n";
 }
 
+// ============================================================
+// CRUD — updateZone
+// ============================================================
 bool FloodMonitor::updateZone(int index, double newLevel) {
     if (index < 1 || index > (int)zones.size()) return false;
     if (!isValidLevel(newLevel)) return false;
-    zones[index - 1].setLevel(newLevel);
+    zones[index - 1]->setLevel(newLevel);
     return true;
 }
 
+// ============================================================
+// CRUD — deleteZone
+// ============================================================
 bool FloodMonitor::deleteZone(int index) {
     if (index < 1 || index > (int)zones.size()) return false;
+    delete zones[index - 1];           // free memory
     zones.erase(zones.begin() + (index - 1));
     return true;
 }
 
+// ============================================================
+// Search
+// ============================================================
 void FloodMonitor::searchById() const {
     int id;
     std::cout << "\nEnter Zone ID to search: ";
     while (!(std::cin >> id)) {
         std::cin.clear();
         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        std::cout << "[!] Invalid input. Enter a number: ";
+        std::cout << "[!] Invalid. Enter a number: ";
     }
     int idx = findIndexById(id);
-    if (idx == -1) {
-        std::cout << "\n[!] Zone ID #" << id << " not found.\n";
-        return;
-    }
+    if (idx == -1) { std::cout << "\n[!] Zone ID #" << id << " not found.\n"; return; }
     std::cout << "\n--- Zone Details ---\n";
-    zones[idx].printDetails();
+    zones[idx]->printDetails();   // polymorphic call
 }
 
 void FloodMonitor::searchByName() const {
@@ -327,17 +437,16 @@ void FloodMonitor::searchByName() const {
     std::transform(kLower.begin(), kLower.end(), kLower.begin(), ::tolower);
 
     bool found = false;
-    for (const auto& z : zones) {
-        std::string nLower = z.getName();
+    for (const FloodZone* z : zones) {
+        std::string nLower = z->getName();
         std::transform(nLower.begin(), nLower.end(), nLower.begin(), ::tolower);
         if (nLower.find(kLower) != std::string::npos) {
-            std::cout << "\n--- Match Found ---\n";
-            z.printDetails();
+            std::cout << "\n--- Match ---\n";
+            z->printDetails();   // polymorphic call
             found = true;
         }
     }
-    if (!found)
-        std::cout << "\n[!] No zone matching '" << keyword << "' found.\n";
+    if (!found) std::cout << "\n[!] No zone matching '" << keyword << "' found.\n";
 }
 
 bool FloodMonitor::isDataLoaded()             const { return reportsLoaded; }
