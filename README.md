@@ -38,7 +38,7 @@ g++ main.cpp FloodZone.cpp FloodMonitor.cpp -o resqnet -std=c++11
 - Padilla: FloodMonitor CRUD operations, search functions
 - Co: File I/O, input validation, main menu
 - Doromal: Risk assessment report, safe route mapping, statistics
-- Domandam: Documentation, README, database records, flowchart
+- Domandan: Documentation, README, database records, flowchart
 
 ## SDG Alignment
 - SDG 11: Sustainable Cities - ResQNet helps LGUs respond faster to flooding
