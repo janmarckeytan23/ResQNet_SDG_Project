@@ -1,5 +1,7 @@
 # ResQNet PH Flood Zone Database
-# id|name|municipality|level_cm|families|evacuated|rescueTeam
+# id|name|mucd ~/Desktop/resqnet/CODE
+./resqnet
+ed|rescueTeam
 1|Brgy. Batasan Hills|Quezon City|85.0|320|0|Team Alpha
 2|Brgy. Payatas|Quezon City|120.5|415|1|Team Alpha
 3|Brgy. Commonwealth|Quezon City|45.0|180|0|Team Bravo
